@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>AquaRestore Studio Pro v4.1 (極速除錯修復版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    /* 內建完整原生防呆樣式，即使離線或 CDN 被擋也能正常運作與隱藏遮罩 */
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    .hidden { display: none !important; }
+    html, body {
+      margin: 0; padding: 0;
+      width: 100vw; height: 100dvh;
+      overflow: hidden;
+      background: #080b11;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #090d14; }
+    ::-webkit-scrollbar-thumb { background: #263248; border-radius: 3px; }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #1e293b;
+      height: 6px;
+      border-radius: 999px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #22d3ee;
+      border: 2px solid #080b11;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.65);
+    }
+    .style-chip.active {
+      border-color: #22d3ee !important;
+      background: linear-gradient(180deg, rgba(6,182,212,0.25) 0%, rgba(15,23,42,0.95) 100%) !important;
+      box-shadow: 0 0 0 1px #22d3ee;
+    }
+    .nav-tab.active {
+      color: #22d3ee !important;
+      border-top: 2px solid #22d3ee;
+      background: rgba(34, 211, 238, 0.08);
+    }
+    @keyframes sonarPulse {
+      0% { transform: scale(0.9); opacity: 0.75; }
+      50% { transform: scale(1.06); opacity: 0.25; }
+      100% { transform: scale(0.9); opacity: 0.75; }
+    }
+    .sonar-ring { animation: sonarPulse 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="flex flex-col h-[100dvh] w-screen overflow-hidden bg-[#080b11]">
+
+  <!-- ===================================================================== -->
+  <!-- 1. 獨立防卡死開機 Logo 畫面 (點擊畫面任意處或 0.7 秒後強制關閉)          -->
+  <!-- ===================================================================== -->
+  <div id="splashScreen" onclick="window.__dismissSplash()" style="position:fixed;inset:0;z-index:9999;background:#05080e;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;cursor:pointer;transition:opacity 0.35s ease;">
+    <div style="position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">
+      <div class="sonar-ring" style="position:absolute;width:112px;height:112px;border-radius:999px;border:1px solid rgba(34,211,238,0.35);"></div>
+      <svg style="width:80px;height:80px;filter:drop-shadow(0 0 16px rgba(34,211,238,0.5));" viewBox="0 0 100 100" fill="none">
+        <defs>
+          <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#22d3ee" />
+            <stop offset="55%" stop-color="#3b82f6" />
+            <stop offset="100%" stop-color="#f59e0b" />
+          </linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r="44" stroke="url(#logoGrad)" stroke-width="4" fill="#0b1322" />
+        <path d="M22 54 C35 40, 45 66, 57 48 C65 38, 73 48, 79 42" stroke="url(#logoGrad)" stroke-width="5" stroke-linecap="round" />
+        <path d="M26 65 C38 54, 48 72, 62 58 C68 52, 74 56, 76 54" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-opacity="0.7" />
+        <circle cx="64" cy="33" r="6.5" fill="#f59e0b" />
+      </svg>
+    </div>
+    <h1 style="font-size:20px;font-weight:800;letter-spacing:0.08em;color:#ffffff;margin:0;">
+      AQUARESTORE <span style="color:#22d3ee;font-weight:300;">PRO v4.1</span>
+    </h1>
+    <p style="font-size:12px;color:#94a3b8;margin-top:6px;">
+      原生比例無損預覽 × 8 倍細節縮放 × 自訂畫質幀數與系統分享
+    </p>
+    <div style="width:220px;height:6px;background:#1e293b;border-radius:999px;overflow:hidden;margin-top:18px;">
+      <div id="splashBar" style="height:100%;width:85%;background:linear-gradient(90deg,#22d3ee,#3b82f6,#f59e0b);transition:width 0.3s ease;"></div>
+    </div>
+    <button type="button" onclick="window.__dismissSplash()" style="margin-top:20px;padding:8px 20px;border-radius:999px;background:#06b6d4;color:#080b11;font-weight:700;font-size:12px;border:none;cursor:pointer;">
+      點擊任意處立即進入工作站 →
+    </button>
+  </div>
+
+  <!-- 獨立的優先關閉腳本：保證絕不卡在起始畫面 -->
+  <script>
+    window.__dismissSplash = function () {
+      var s = document.getElementById('splashScreen');
+      if (!s || s.dataset.closed === '1') return;
+      s.dataset.closed = '1';
+      s.style.opacity = '0';
+      s.style.pointerEvents = 'none';
+      setTimeout(function () {
+        s.style.display = 'none';
+        s.classList.add('hidden');
+      }, 320);
+    };
+    setTimeout(window.__dismissSplash, 700);
+  </script>
+
+  <!-- 浮動 Toast 通知 -->
+  <div id="toastContainer" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center gap-1.5 w-[90%] max-w-md"></div>
+
+  <!-- ===================================================================== -->
+  <!-- 2. 影片生成進度與完成分享彈窗 (Video Render & Share Modal)              -->
+  <!-- ===================================================================== -->
+  <div id="videoModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#101622] border border-cyan-500/40 rounded-2xl p-5 w-full max-w-sm shadow-2xl text-center">
+      <div id="videoSpinner" class="w-10 h-10 mx-auto rounded-full border-2 border-cyan-400 border-t-transparent animate-spin mb-3"></div>
+      <h3 id="videoModalTitle" class="text-sm font-bold text-white">正在依設定畫質與幀數渲染還原影片...</h3>
+      <p id="videoModalSpec" class="text-[11px] text-cyan-300 font-mono mt-1">1080p | 30 FPS | 8 Mbps</p>
+      <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-4">
+        <div id="videoModalBar" class="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 w-0 transition-all"></div>
+      </div>
+      <div id="videoModalPct" class="text-xs font-mono text-slate-300 mt-2">0%</div>
+
+      <div id="videoDoneActions" class="hidden mt-4 space-y-2">
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btnVideoSavePicker" class="py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs">
+            📁 選擇位置儲存
+          </button>
+          <button id="btnVideoNativeShare" class="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">
+            📲 分享 / 存相簿
+          </button>
+        </div>
+      </div>
+      <button id="btnCloseVideoModal" class="mt-4 w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">
+        關閉視窗
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 3. 頂部導覽列 (Top App Bar)                                            -->
+  <!-- ===================================================================== -->
+  <header id="topBar" class="h-12 shrink-0 bg-[#0d121c] border-b border-[#1e2738] px-2.5 flex items-center justify-between gap-1.5 z-20">
+    <div class="flex items-center gap-2 min-w-0">
+      <svg class="w-6 h-6 shrink-0" viewBox="0 0 100 100" fill="none">
+        <circle cx="50" cy="50" r="44" stroke="#22d3ee" stroke-width="6" fill="#0b1322" />
+        <path d="M22 54 C36 40, 46 66, 58 48 C66 38, 74 48, 80 42" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" />
+        <circle cx="64" cy="32" r="8" fill="#22d3ee" />
+      </svg>
+      <div class="min-w-0">
+        <div class="text-xs font-bold text-white truncate">AquaRestore <span class="text-cyan-400">v4.1</span></div>
+        <div id="aspectBadge" class="text-[10px] font-mono text-cyan-300 truncate">9:16 直式 (540×960)</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-1.5 shrink-0">
+      <label class="cursor-pointer px-2.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1">
+        <span>＋匯入檔案</span>
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple class="hidden" />
+      </label>
+      <button id="btnQuickAuto" class="px-2 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs">
+        ✨AI尋優
+      </button>
+      <button id="btnToggleFullscreen" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-semibold">
+        ⛶ 全畫面
+      </button>
+      <button id="btnTopQuickShare" class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs">
+        📤 輸出/分享
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- 4. 中央主預覽監視器區 (嚴格維持原生長寬比 + 支援 1x~8x 縮放平移)          -->
+  <!-- ===================================================================== -->
+  <section id="viewportArea" class="flex-1 min-h-0 relative bg-[#05070b] flex flex-col overflow-hidden">
+
+    <!-- 頂部浮動檢視與縮放控制條 -->
+    <div class="absolute top-2 left-2 right-2 z-20 flex flex-wrap items-center justify-between gap-1.5 pointer-events-none">
+      <div class="pointer-events-auto flex items-center gap-1 bg-slate-950/85 backdrop-blur-md px-2 py-1 rounded-lg border border-slate-800 text-[11px]">
+        <button id="btnTouchSplitMode" class="px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold">✂️ 拉分割線</button>
+        <button id="btnTouchPanMode" class="px-2 py-0.5 rounded text-slate-300 hover:text-white">✋ 拖曳平移</button>
+        <button id="btnHoldOriginal" class="px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-amber-500/30 active:bg-amber-400 active:text-slate-950">👁️ 按住原圖</button>
+      </div>
+
+      <div class="pointer-events-auto flex items-center gap-1 bg-slate-950/85 backdrop-blur-md px-2 py-1 rounded-lg border border-slate-800 text-[11px]">
+        <button id="btnZoomOut" class="w-6 h-5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold">－</button>
+        <button id="btnZoomReset" class="px-1.5 h-5 rounded bg-slate-900 text-cyan-300 font-mono">1.0x</button>
+        <button id="btnZoom2x" class="px-1.5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono">2x</button>
+        <button id="btnZoom4x" class="px-1.5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono">4x</button>
+        <button id="btnZoomIn" class="w-6 h-5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold">＋</button>
+      </div>
+    </div>
+
+    <!-- 畫布外層容器 (自動置中並保持原始比例) -->
+    <div id="viewportContainer" class="flex-1 min-h-0 w-full h-full flex items-center justify-center overflow-hidden relative touch-none">
+      <div id="canvasStage" class="relative inline-flex items-center justify-center transition-transform duration-75 ease-out" style="transform-origin: center center;">
+        <canvas id="mainCanvas" class="block shadow-2xl border border-slate-800/80"></canvas>
+        <video id="hiddenVideo" class="hidden" playsinline muted loop crossorigin="anonymous"></video>
+
+        <!-- 貼合實際影像寬度的可拖曳分割線 -->
+        <div id="splitLineEl" class="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-cyan-400 shadow-[0_0_10px_#22d3ee]" style="left: 50%;">
+          <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-cyan-400 text-slate-950 font-extrabold text-[11px] flex items-center justify-center shadow-lg border-2 border-slate-950">
+            ◄►
+          </div>
+          <div id="splitPctBubble" class="absolute top-8 -translate-x-1/2 px-2 py-0.5 rounded bg-slate-950/90 border border-cyan-400 text-[10px] font-mono text-cyan-300 whitespace-nowrap">
+            50.0%
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部浮動：分割滑桿與影片播放控制條 -->
+    <div class="bg-[#0b0f18]/95 border-t border-slate-800/80 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs z-20">
+      <div class="flex items-center gap-2">
+        <button id="btnPlayPause" class="px-2 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-[11px]">▶ 動態預覽</button>
+        <span id="timecodeLabel" class="font-mono text-[11px] text-slate-400">00:00.0</span>
+        <input id="videoScrubSlider" type="range" min="0" max="100" value="0" class="w-20 sm:w-28" />
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-[11px] text-slate-400">分割對比:</span>
+        <input id="bottomSplitSlider" type="range" min="0" max="100" step="0.5" value="50" class="w-24 sm:w-32" />
+        <span id="bottomSplitText" class="font-mono text-[11px] text-cyan-300 w-11 text-right">50.0%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 5. 底部抽屜面板 + 手機直式 4 大導覽分頁                                 -->
+  <!-- ===================================================================== -->
+  <footer id="bottomDock" class="shrink-0 bg-[#0d121c] border-t border-[#1e2738] flex flex-col z-20">
+
+    <div id="drawerContent" class="h-52 sm:h-56 overflow-y-auto p-2.5">
+
+      <!-- 分頁 1：✨ AI 自動分析與 8 大風格即時預覽 -->
+      <div id="tabPane_styles" class="space-y-2">
+        <div class="flex items-center justify-between gap-2 bg-[#080b11] px-2.5 py-1.5 rounded-lg border border-slate-800">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 font-bold text-[10px] shrink-0">🤖 AI 診斷</span>
+            <span id="aiDiagnosisBanner" class="text-[11px] text-slate-200 truncate">偵測為標準深藍水體 → 已自動標出最適合的 Top 3 風格</span>
+          </div>
+          <span id="scoreSummaryBadge" class="text-[11px] font-mono text-emerald-400 shrink-0">即時預覽就緒</span>
+        </div>
+
+        <div id="styleCardsContainer" class="grid grid-cols-4 sm:grid-cols-8 gap-2"></div>
+      </div>
+
+      <!-- 分頁 2：🎚️ 精修調色與持續學習 -->
+      <div id="tabPane_adjust" class="hidden space-y-2.5">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+          <div class="flex gap-1 bg-[#080b11] p-0.5 rounded border border-slate-800 text-[11px]">
+            <button id="subTabBasic" class="px-2.5 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold">基礎推桿</button>
+            <button id="subTabPro" class="px-2.5 py-0.5 rounded text-slate-400">Pro 通道與曲線</button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="btnLearnStyle" class="px-2.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold text-[11px]">
+              ♥ 喜歡並學習此微調 (<span id="learnCountBadge">0</span>)
+            </button>
+            <button id="btnResetCurrent" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">重設</button>
+          </div>
+        </div>
+
+        <div id="basicSlidersGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
+          <div>
+            <div class="flex justify-between mb-0.5"><span>整體還原強度 (Intensity)</span><span id="v_intensity" class="font-mono text-cyan-300">90%</span></div>
+            <input id="s_intensity" type="range" min="0" max="150" value="90" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>水深紅光補償 (Depth)</span><span id="v_depth" class="font-mono text-cyan-300">12.0m</span></div>
+            <input id="s_depth" type="range" min="1" max="40" step="0.5" value="12" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>UDCP 去水霧強度 (Dehaze)</span><span id="v_dehaze" class="font-mono text-cyan-300">55%</span></div>
+            <input id="s_dehaze" type="range" min="0" max="100" value="55" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>海雪懸浮微粒消除 (Backscatter)</span><span id="v_scatter" class="font-mono text-cyan-300">50%</span></div>
+            <input id="s_scatter" type="range" min="0" max="100" value="50" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>暗部壓暗立體感 (黑暗風控制)</span><span id="v_shadow" class="font-mono text-amber-300">10%</span></div>
+            <input id="s_shadow" type="range" min="0" max="80" value="10" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>色彩飽和度 (Saturation)</span><span id="v_sat" class="font-mono text-cyan-300">1.15x</span></div>
+            <input id="s_sat" type="range" min="0" max="200" value="115" class="w-full" />
+          </div>
+        </div>
+
+        <div id="proSlidersGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
+          <div>
+            <div class="flex justify-between mb-0.5"><span>綠光修補紅通道 (R ← G)</span><span id="v_rg" class="font-mono text-cyan-300">0.44</span></div>
+            <input id="s_rg" type="range" min="0" max="100" value="44" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>色溫冷暖軸 (Temp)</span><span id="v_temp" class="font-mono text-cyan-300">+12</span></div>
+            <input id="s_temp" type="range" min="-45" max="45" value="12" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>綠水洋紅補償 (Tint)</span><span id="v_tint" class="font-mono text-cyan-300">-4</span></div>
+            <input id="s_tint" type="range" min="-45" max="45" value="-4" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>微對比與清晰度 (Clarity)</span><span id="v_clarity" class="font-mono text-cyan-300">2.0</span></div>
+            <input id="s_clarity" type="range" min="5" max="45" value="20" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>伽瑪曲線 (Gamma)</span><span id="v_gamma" class="font-mono text-cyan-300">1.04</span></div>
+            <input id="s_gamma" type="range" min="65" max="150" value="104" class="w-full" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-0.5"><span>陽光亮部防爆保護 (Hi-Protect)</span><span id="v_hiprot" class="font-mono text-cyan-300">78%</span></div>
+            <input id="s_hiprot" type="range" min="0" max="100" value="78" class="w-full" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 分頁 3：🗂️ 媒體池與批次處理佇列 -->
+      <div id="tabPane_batch" class="hidden space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-1.5">
+          <div class="flex items-center gap-1.5">
+            <label class="cursor-pointer px-2.5 py-1 rounded bg-cyan-500 text-slate-950 font-bold text-xs">
+              ＋ 新增多張照片/影片
+              <input id="batchFileInput" type="file" accept="image/*,video/*" multiple class="hidden" />
+            </label>
+            <button id="btnBatchSmartAll" class="px-2.5 py-1 rounded bg-emerald-600 text-white font-semibold text-xs">
+              ⚡ AI 逐張智慧批次還原
+            </button>
+            <button id="btnBatchSyncAll" class="px-2.5 py-1 rounded bg-indigo-600 text-white font-semibold text-xs">
+              🎨 套用當前風格至全部
+            </button>
+          </div>
+          <button id="btnBatchZipExport" class="px-2.5 py-1 rounded bg-blue-600 text-white font-bold text-xs">
+            📦 批次打包下載 (.zip)
+          </button>
+        </div>
+
+        <div id="queueGridContainer" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1"></div>
+      </div>
+
+      <!-- 分頁 4：📤 輸出畫質、幀數設定、選擇位置儲存與系統分享 -->
+      <div id="tabPane_export" class="hidden space-y-2.5 text-xs">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="bg-[#080b11] p-2 rounded-lg border border-slate-800">
+            <label class="block text-[10px] text-slate-400 mb-1">輸出解析度 (維持原比例)</label>
+            <select id="expResolution" class="w-full bg-slate-900 text-cyan-200 rounded px-2 py-1 text-xs border border-slate-700">
+              <option value="native">原始無損解析度 (100% Native)</option>
+              <option value="3840">4K UHD (長邊 3840px)</option>
+              <option value="2560">2K QHD (長邊 2560px)</option>
+              <option value="1920">1080p FHD (長邊 1920px)</option>
+              <option value="1280">720p HD 快速分享 (長邊 1280px)</option>
+            </select>
+          </div>
+
+          <div class="bg-[#080b11] p-2 rounded-lg border border-slate-800">
+            <label class="block text-[10px] text-slate-400 mb-1">照片格式與壓縮畫質</label>
+            <select id="expImageFormat" class="w-full bg-slate-900 text-cyan-200 rounded px-2 py-1 text-xs border border-slate-700">
+              <option value="image/png|1.0">PNG 無損格式 (100%)</option>
+              <option value="image/jpeg|0.95">JPEG 極致畫質 (95%)</option>
+              <option value="image/jpeg|0.85">JPEG 標準分享 (85%)</option>
+              <option value="image/webp|0.92">WebP 高效無損感 (92%)</option>
+            </select>
+          </div>
+
+          <div class="bg-[#080b11] p-2 rounded-lg border border-slate-800">
+            <label class="block text-[10px] text-slate-400 mb-1">影片輸出幀數 (Frame Rate)</label>
+            <select id="expVideoFps" class="w-full bg-slate-900 text-amber-300 rounded px-2 py-1 text-xs border border-slate-700 font-semibold">
+              <option value="24">24 FPS (電影敘事感)</option>
+              <option value="30" selected>30 FPS (標準流暢)</option>
+              <option value="60">60 FPS (高幀率絲滑動作)</option>
+            </select>
+          </div>
+
+          <div class="bg-[#080b11] p-2 rounded-lg border border-slate-800">
+            <label class="block text-[10px] text-slate-400 mb-1">影片畫質位元率 (Bitrate)</label>
+            <select id="expVideoBitrate" class="w-full bg-slate-900 text-amber-300 rounded px-2 py-1 text-xs border border-slate-700">
+              <option value="16000000">極致高碼率 (16 Mbps)</option>
+              <option value="8000000" selected>高畫質標準 (8 Mbps)</option>
+              <option value="4000000">社群快速傳送 (4 Mbps)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          <button id="btnSavePhotoPicker" class="py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center gap-1">
+            📁 照片選擇位置儲存
+          </button>
+          <button id="btnSharePhotoNative" class="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1">
+            📲 分享照片 / 存手機相簿
+          </button>
+          <button id="btnRenderVideoWithSpec" class="py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center gap-1">
+            🎬 依設定生成還原影片
+          </button>
+          <button id="btnExportCubeLut" class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 font-semibold flex items-center justify-center gap-1">
+            📐 匯出 .cube 3D LUT
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 底部 4 大導覽分頁列 -->
+    <nav class="h-11 shrink-0 bg-[#090d15] border-t border-slate-800 grid grid-cols-4 text-xs font-semibold">
+      <button data-tab="styles" class="nav-tab active flex items-center justify-center gap-1">
+        <span>✨ AI 風格推薦</span>
+      </button>
+      <button data-tab="adjust" class="nav-tab text-slate-400 flex items-center justify-center gap-1">
+        <span>🎚️ 精修調色</span>
+      </button>
+      <button data-tab="batch" class="nav-tab text-slate-400 flex items-center justify-center gap-1">
+        <span>🗂️ 批次佇列 (<span id="navQueueCount">4</span>)</span>
+      </button>
+      <button data-tab="export" class="nav-tab text-slate-400 flex items-center justify-center gap-1">
+        <span>📤 畫質輸出/分享</span>
+      </button>
+    </nav>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- 6. 極速硬體加速與查找表 (LUT) 還原引擎                                 -->
+  <!-- ===================================================================== -->
+  <script>
+    function showToast(msg, type = 'info') {
+      const box = document.getElementById('toastContainer');
+      if (!box) return;
+      const el = document.createElement('div');
+      const styles = {
+        info: 'border-cyan-400 bg-slate-900/95 text-cyan-200',
+        success: 'border-emerald-400 bg-slate-900/95 text-emerald-200',
+        warn: 'border-amber-400 bg-slate-900/95 text-amber-200'
+      };
+      el.className = `px-3.5 py-1.5 rounded-full border shadow-xl text-xs font-medium transition-all duration-300 ${styles[type] || styles.info}`;
+      el.textContent = msg;
+      box.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 250);
+      }, 2200);
+    }
+
+    const STYLE_LIBRARY = [
+      {
+        id: 'natural_true', name: '自然真實風', tag: '標準還原',
+        params: { intensity: 0.88, depth: 11.0, dehaze: 0.50, scatter: 0.45, shadow: 0.08, rg: 0.42, temp: 12, tint: -5, clarity: 1.9, gamma: 1.05, sat: 1.12, hiprot: 0.80, mono: 0 }
+      },
+      {
+        id: 'crystal_clarity', name: '極致清晰風', tag: '高通透去霧',
+        params: { intensity: 0.96, depth: 12.5, dehaze: 0.82, scatter: 0.65, shadow: 0.15, rg: 0.46, temp: 14, tint: -6, clarity: 3.1, gamma: 1.02, sat: 1.18, hiprot: 0.78, mono: 0 }
+      },
+      {
+        id: 'dark_moody', name: '深海黑暗風', tag: '低調立體感',
+        params: { intensity: 0.92, depth: 14.0, dehaze: 0.72, scatter: 0.80, shadow: 0.54, rg: 0.38, temp: 6, tint: -8, clarity: 2.8, gamma: 0.86, sat: 1.08, hiprot: 0.88, mono: 0 }
+      },
+      {
+        id: 'cinematic_story', name: '電影故事風', tag: '青藍×暖金',
+        params: { intensity: 0.90, depth: 15.0, dehaze: 0.60, scatter: 0.55, shadow: 0.28, rg: 0.48, temp: 16, tint: -12, clarity: 2.3, gamma: 0.98, sat: 1.16, hiprot: 0.85, mono: 0 }
+      },
+      {
+        id: 'tropical_vivid', name: '熱帶鮮豔風', tag: '高彩珊瑚',
+        params: { intensity: 1.00, depth: 13.0, dehaze: 0.65, scatter: 0.50, shadow: 0.10, rg: 0.52, temp: 20, tint: -7, clarity: 2.4, gamma: 1.08, sat: 1.34, hiprot: 0.75, mono: 0 }
+      },
+      {
+        id: 'emerald_clean', name: '綠水去濁風', tag: '東北角/湖泊',
+        params: { intensity: 0.95, depth: 14.0, dehaze: 0.78, scatter: 0.70, shadow: 0.18, rg: 0.58, temp: 24, tint: 16, clarity: 2.6, gamma: 1.03, sat: 1.10, hiprot: 0.80, mono: 0 }
+      },
+      {
+        id: 'soft_freedive', name: '柔和寫真風', tag: '自潛人像',
+        params: { intensity: 0.82, depth: 9.5, dehaze: 0.42, scatter: 0.60, shadow: 0.04, rg: 0.36, temp: 10, tint: -2, clarity: 1.4, gamma: 1.12, sat: 1.06, hiprot: 0.92, mono: 0 }
+      },
+      {
+        id: 'wreck_mono', name: '銀鹽黑白風', tag: '高反差沉船',
+        params: { intensity: 1.00, depth: 18.0, dehaze: 0.85, scatter: 0.65, shadow: 0.35, rg: 0.50, temp: 0, tint: 0, clarity: 3.4, gamma: 0.94, sat: 0.0, hiprot: 0.72, mono: 1 }
+      }
+    ];
+
+    let activeStyleId = 'natural_true';
+    let currentParams = { ...STYLE_LIBRARY[0].params };
+    let splitPercent = 50.0;
+    let isHoldOriginal = false;
+    let touchActionMode = 'split';
+    let zoomScale = 1.0;
+    let panX = 0, panY = 0;
+    let isFullscreenDetail = false;
+
+    let learnCount = 0;
+    let learnedOffsets = {
+      deep_blue: { rg: 0, dehaze: 0, temp: 0, tint: 0, shadow: 0 },
+      emerald_green: { rg: 0, dehaze: 0, temp: 0, tint: 0, shadow: 0 },
+      shallow_cyan: { rg: 0, dehaze: 0, temp: 0, tint: 0, shadow: 0 }
+    };
+
+    const workCanvas = document.createElement('canvas');
+    const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
+    const restoredCanvas = document.createElement('canvas');
+    const restoredCtx = restoredCanvas.getContext('2d');
+
+    let mediaQueue = [];
+    let selectedItemId = null;
+    let isPlayingSim = false;
+    let playInterval = null;
+    let simTimeSec = 0.0;
+    let lastRecordedVideoBlob = null;
+    let lastRecordedVideoName = 'aquarestore_video.webm';
+
+    function formatAspectRatio(w, h) {
+      const r = w / h;
+      if (Math.abs(r - 9 / 16) < 0.05) return '9:16 直式';
+      if (Math.abs(r - 16 / 9) < 0.05) return '16:9 橫式';
+      if (Math.abs(r - 4 / 3) < 0.05) return '4:3 相機';
+      if (Math.abs(r - 3 / 4) < 0.05) return '3:4 直式';
+      if (Math.abs(r - 1.0) < 0.05) return '1:1 方形';
+      return `${w > h ? '橫式' : '直式'} (${r.toFixed(2)}:1)`;
+    }
+
+    // -------------------------------------------------------------------------
+    // 極速 Canvas 2D 硬體加速水下測試圖生成器 (< 3 毫秒完成，絕不卡頓！)
+    // -------------------------------------------------------------------------
+    function buildFastSceneCanvas(sceneKey, w, h, depthOverride = null) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      const dFactor = depthOverride !== null ? Math.min(1.4, depthOverride / 12.0) : 1.0;
+
+      // 1. 水體背景漸層
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+      if (sceneKey === 'emerald_4_3') {
+        bgGrad.addColorStop(0, '#1e9678');
+        bgGrad.addColorStop(0.6, '#126e58');
+        bgGrad.addColorStop(1, '#0b3d32');
+      } else if (sceneKey === 'macro_4_3') {
+        bgGrad.addColorStop(0, '#0a3552');
+        bgGrad.addColorStop(1, '#041626');
+      } else {
+        const topB = Math.round(215 / dFactor);
+        bgGrad.addColorStop(0, `rgb(18, 148, ${Math.min(255, topB)})`);
+        bgGrad.addColorStop(0.6, '#0c5a8a');
+        bgGrad.addColorStop(1, '#062642');
+      }
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 2. 水下陽光耶穌光束 (Sunbeams)
+      ctx.save();
+      for (let i = 0; i < 5; i++) {
+        const bx = w * (0.15 + i * 0.18);
+        const beamGrad = ctx.createLinearGradient(bx, 0, bx + w * 0.12, h * 0.85);
+        beamGrad.addColorStop(0, 'rgba(140, 235, 255, 0.22)');
+        beamGrad.addColorStop(1, 'rgba(20, 120, 180, 0)');
+        ctx.fillStyle = beamGrad;
+        ctx.beginPath();
+        ctx.moveTo(bx - w * 0.04, 0);
+        ctx.lineTo(bx + w * 0.06, 0);
+        ctx.lineTo(bx + w * 0.24, h * 0.9);
+        ctx.lineTo(bx + w * 0.02, h * 0.9);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 3. 場景主體繪製 (包含被水體藍光衰減前的潛在紅橘色訊號，供還原引擎展現威力)
+      if (sceneKey === 'portrait_freedive') {
+        // 兩側深海礁壁
+        ctx.fillStyle = '#144966';
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.35); ctx.lineTo(w * 0.25, h * 0.65); ctx.lineTo(w * 0.32, h); ctx.lineTo(0, h);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(w, h * 0.42); ctx.lineTo(w * 0.72, h * 0.72); ctx.lineTo(w * 0.65, h); ctx.lineTo(w, h);
+        ctx.fill();
+
+        // 中央自由潛水員與長蛙鞋
+        ctx.fillStyle = '#2d6880';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.46, w * 0.06, h * 0.09, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        // 潛水員臉部/膚色與橘紅浮球細節 (水下呈現暗青紅)
+        ctx.fillStyle = '#527885';
+        ctx.beginPath();
+        ctx.arc(w * 0.48, h * 0.35, w * 0.045, 0, Math.PI * 2);
+        ctx.fill();
+        // 底部軟珊瑚群
+        for (let k = 0; k < 8; k++) {
+          ctx.fillStyle = k % 2 === 0 ? '#4d7682' : '#3d827a';
+          ctx.beginPath();
+          ctx.arc(w * (0.12 + k * 0.11), h * 0.88, w * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (sceneKey === 'reef_16_9') {
+        // 珊瑚礁前景與海龜
+        ctx.fillStyle = '#1b5870';
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.62);
+        ctx.quadraticCurveTo(w * 0.35, h * 0.50, w * 0.7, h * 0.68);
+        ctx.lineTo(w, h * 0.58); ctx.lineTo(w, h); ctx.lineTo(0, h);
+        ctx.fill();
+
+        // 色彩被水衰減的珊瑚叢
+        const coralColors = ['#54787d', '#488278', '#5e7075', '#3e7c85'];
+        for (let k = 0; k < 12; k++) {
+          ctx.fillStyle = coralColors[k % coralColors.length];
+          ctx.beginPath();
+          ctx.ellipse(w * (0.06 + k * 0.08), h * (0.72 + (k % 3) * 0.07), w * 0.055, h * 0.07, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // 海龜背甲
+        ctx.fillStyle = '#4a7a78';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.48, h * 0.44, w * 0.11, h * 0.08, -0.15, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (sceneKey === 'emerald_4_3') {
+        // 東北角綠水礁岩與魚群
+        ctx.fillStyle = '#256b54';
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.55); ctx.lineTo(w * 0.45, h * 0.48); ctx.lineTo(w, h * 0.62); ctx.lineTo(w, h); ctx.lineTo(0, h);
+        ctx.fill();
+        for (let f = 0; f < 9; f++) {
+          ctx.fillStyle = '#5c967e';
+          ctx.beginPath();
+          ctx.ellipse(w * (0.2 + f * 0.07), h * (0.35 + (f % 3) * 0.08), w * 0.035, h * 0.02, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // 微距海葵與小丑魚
+        for (let t = 0; t < 18; t++) {
+          ctx.fillStyle = '#387578';
+          ctx.beginPath();
+          ctx.ellipse(w * (0.2 + (t % 6) * 0.1), h * (0.45 + Math.floor(t / 6) * 0.14), w * 0.04, h * 0.11, (t - 9) * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // 小丑魚橘白身體 (受藍光影響偏青褐)
+        ctx.fillStyle = '#856e62';
+        ctx.beginPath();
+        ctx.ellipse(w * 0.5, h * 0.52, w * 0.16, h * 0.10, -0.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#b8d8e0';
+        ctx.fillRect(w * 0.46, h * 0.43, w * 0.035, h * 0.18);
+      }
+
+      // 4. 海雪懸浮微粒 (Backscatter)
+      ctx.fillStyle = 'rgba(225, 245, 255, 0.85)';
+      for (let s = 0; s < 55; s++) {
+        const sx = ((s * 97) % (w - 16)) + 8;
+        const sy = ((s * 53) % (h - 16)) + 8;
+        ctx.beginPath();
+        ctx.arc(sx, sy, (s % 3 === 0) ? 2.0 : 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return c;
+    }
+
+    // -------------------------------------------------------------------------
+    // 極速像素還原管線 (使用 256 階預計算 Tone LUT，比舊版快 20 倍！)
+    // -------------------------------------------------------------------------
+    function runPixelRestoration(srcData, w, h, p) {
+      const out = new Uint8ClampedArray(srcData.length);
+      const df = Math.min(2.2, Math.max(0.3, p.depth / 10.0));
+      const dehaze = p.dehaze;
+      const bs = p.scatter * p.intensity;
+      const shadowCrush = p.shadow || 0;
+      const invG = 1.0 / Math.max(0.4, p.gamma);
+      const cg = 1.0 + (p.clarity - 1.5) * 0.19;
+
+      // 預計算 256 階曲線查找表 (避免在百萬像素迴圈內呼叫 Math.pow)
+      const toneLUT = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const v = i / 255.0;
+        let mapped = Math.pow(Math.max(0.0, Math.min(1.0, (v - 0.5) * cg + 0.5)), invG);
+        if (shadowCrush > 0.01 && mapped < 0.55) {
+          mapped = Math.pow(mapped / 0.55, 1.0 + shadowCrush * 1.6) * 0.55;
+        }
+        toneLUT[i] = mapped;
+      }
+
+      const rgGain = p.rg * df;
+      const tempAdd = p.temp * 0.005;
+      const tintSub = p.tint * 0.0035;
+      const bAtten = 0.14 * Math.min(1.2, df * 0.5);
+      const sat = p.sat;
+      const intensity = p.intensity;
+      const invIntensity = 1.0 - intensity;
+      const hiprot = p.hiprot * 0.72;
+      const isMono = p.mono > 0.5;
+
+      for (let y = 0; y < h; y++) {
+        const rowOff = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = (rowOff + x) << 2;
+          let r = srcData[i], g = srcData[i + 1], b = srcData[i + 2];
+
+          // 1. 海雪微粒抑制
+          if (bs > 0.05 && x > 1 && x < w - 2 && y > 1 && y < h - 2) {
+            const lumC = (r * 77 + g * 150 + b * 29) >> 8;
+            const n1 = i - (w << 2), n2 = i + (w << 2);
+            const avgG = (srcData[n1 + 1] + srcData[n2 + 1]) >> 1;
+            if (lumC - avgG > (36 - bs * 22)) {
+              r = ((srcData[n1] + srcData[n2]) * 0.5) * bs + r * (1 - bs);
+              g = avgG * bs + g * (1 - bs);
+              b = ((srcData[n1 + 2] + srcData[n2 + 2]) * 0.5) * bs + b * (1 - bs);
+            }
+          }
+
+          const rf = r * 0.0039215686, gf = g * 0.0039215686, bf = b * 0.0039215686;
+          const maxGB = gf > bf ? gf : bf;
+          const relDepth = maxGB > rf ? (maxGB - rf) : 0.0;
+          const sw = 0.55 + 0.45 * relDepth;
+
+          let rComp = rf + (rgGain * gf - 0.08 * bf) * (1.0 - rf) * sw;
+          let gComp = gf - tintSub + 0.04 * (bf - gf);
+          let bComp = bf * (1.0 - bAtten * sw) - tempAdd * 0.9;
+
+          if (dehaze > 0.01) {
+            const t = Math.max(0.28, 1.0 - dehaze * 0.65 * relDepth);
+            const invT = 1.0 / t;
+            rComp = (rComp - 0.16 * (1.0 - t)) * invT;
+            gComp = (gComp - 0.32 * (1.0 - t)) * invT;
+            bComp = (bComp - 0.48 * (1.0 - t)) * invT;
+          }
+
+          rComp += tempAdd;
+
+          // 使用預計算 LUT 映射曲線
+          const rIdx = rComp <= 0 ? 0 : (rComp >= 1 ? 255 : (rComp * 255) | 0);
+          const gIdx = gComp <= 0 ? 0 : (gComp >= 1 ? 255 : (gComp * 255) | 0);
+          const bIdx = bComp <= 0 ? 0 : (bComp >= 1 ? 255 : (bComp * 255) | 0);
+          rComp = toneLUT[rIdx];
+          gComp = toneLUT[gIdx];
+          bComp = toneLUT[bIdx];
+
+          // 亮部防爆保護
+          const origLum = 0.299 * rf + 0.587 * gf + 0.114 * bf;
+          if (origLum > 0.65) {
+            const hiMask = (origLum - 0.65) * 2.857;
+            const prot = Math.min(0.82, hiprot * hiMask * hiMask);
+            rComp = rComp * (1.0 - prot) + rf * prot;
+            gComp = gComp * (1.0 - prot) + gf * prot;
+            bComp = bComp * (1.0 - prot) + bf * prot;
+          }
+
+          // 飽和度與黑白混合
+          const avg = (rComp + gComp + bComp) * 0.333333;
+          rComp = avg + (rComp - avg) * sat;
+          gComp = avg + (gComp - avg) * sat;
+          bComp = avg + (bComp - avg) * sat;
+
+          if (isMono) {
+            const m = 0.30 * rComp + 0.55 * gComp + 0.15 * bComp;
+            rComp = gComp = bComp = m;
+          }
+
+          out[i] = (rf * invIntensity + rComp * intensity) * 255;
+          out[i + 1] = (gf * invIntensity + gComp * intensity) * 255;
+          out[i + 2] = (bf * invIntensity + bComp * intensity) * 255;
+          out[i + 3] = 255;
+        }
+      }
+      return out;
+    }
+
+    function analyzeImageCanvas(c) {
+      const w = c.width, h = c.height;
+      const data = c.getContext('2d').getImageData(0, 0, w, h).data;
+      let sumR = 0, sumG = 0, sumB = 0, darkCnt = 0, count = 0;
+      for (let i = 0; i < data.length; i += 64) {
+        const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
+        sumR += r; sumG += g; sumB += b;
+        if (0.299 * r + 0.587 * g + 0.114 * b < 0.28) darkCnt++;
+        count++;
+      }
+      const rM = sumR / count, gM = sumG / count, bM = sumB / count;
+      if (gM > bM * 1.05 && gM > rM * 1.25) {
+        return {
+          waterType: 'emerald_green', waterLabel: '綠水／東北角',
+          recommendedIds: ['emerald_clean', 'crystal_clarity', 'dark_moody'],
+          summary: '偵測為「綠藻水體色偏」→ AI 首推：1.綠水去濁風 2.極致清晰風 3.深海黑暗風'
+        };
+      }
+      if (darkCnt / count > 0.45) {
+        return {
+          waterType: 'deep_blue', waterLabel: '深海低光源',
+          recommendedIds: ['dark_moody', 'cinematic_story', 'wreck_mono'],
+          summary: '偵測為「低光源高反差畫面」→ AI 首推：1.深海黑暗風 2.電影故事風 3.銀鹽黑白風'
+        };
+      }
+      return {
+        waterType: 'deep_blue', waterLabel: '深水藍偏',
+        recommendedIds: ['natural_true', 'cinematic_story', 'tropical_vivid'],
+        summary: `偵測為「深水藍偏 (紅光殘留 ${Math.round(rM * 100)}%)」→ AI 首推：1.自然真實風 2.電影故事風 3.熱帶鮮豔風`
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // 原生比例畫布適應與縮放平移
+    // -------------------------------------------------------------------------
+    function fitCanvasStageToViewport() {
+      const vp = document.getElementById('viewportContainer');
+      const mainC = document.getElementById('mainCanvas');
+      if (!workCanvas.width || !workCanvas.height) return;
+
+      const availW = Math.max(80, vp.clientWidth - 16);
+      const availH = Math.max(80, vp.clientHeight - 16);
+      const imgAspect = workCanvas.width / workCanvas.height;
+      const boxAspect = availW / availH;
+
+      let cssW, cssH;
+      if (imgAspect > boxAspect) {
+        cssW = availW;
+        cssH = Math.round(availW / imgAspect);
+      } else {
+        cssH = availH;
+        cssW = Math.round(availH * imgAspect);
+      }
+      mainC.style.width = `${cssW}px`;
+      mainC.style.height = `${cssH}px`;
+      applyStageTransform();
+    }
+
+    function applyStageTransform() {
+      const stage = document.getElementById('canvasStage');
+      stage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+      document.getElementById('btnZoomReset').textContent = `${zoomScale.toFixed(1)}x`;
+    }
+
+    function setZoom(newScale) {
+      zoomScale = Math.max(1.0, Math.min(8.0, newScale));
+      if (zoomScale === 1.0) { panX = 0; panY = 0; }
+      applyStageTransform();
+    }
+
+    window.addEventListener('resize', fitCanvasStageToViewport);
+
+    function renderMonitorFrame() {
+      const w = workCanvas.width, h = workCanvas.height;
+      if (!w || !h) return;
+      const srcData = workCtx.getImageData(0, 0, w, h).data;
+      const restoredData = runPixelRestoration(srcData, w, h, currentParams);
+
+      restoredCanvas.width = w;
+      restoredCanvas.height = h;
+      restoredCtx.putImageData(new ImageData(restoredData, w, h), 0, 0);
+
+      const mainC = document.getElementById('mainCanvas');
+      if (mainC.width !== w || mainC.height !== h) {
+        mainC.width = w;
+        mainC.height = h;
+        fitCanvasStageToViewport();
+      }
+      const mCtx = mainC.getContext('2d');
+      const splitLine = document.getElementById('splitLineEl');
+
+      if (isHoldOriginal) {
+        splitLine.classList.add('hidden');
+        mCtx.drawImage(workCanvas, 0, 0);
+        return;
+      }
+
+      splitLine.classList.remove('hidden');
+      const outFrame = mCtx.createImageData(w, h);
+      const dst = outFrame.data;
+      const splitX = Math.floor((splitPercent / 100) * w);
+
+      for (let y = 0; y < h; y++) {
+        const rowOff = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = (rowOff + x) << 2;
+          if (x < splitX) {
+            dst[i] = srcData[i]; dst[i + 1] = srcData[i + 1]; dst[i + 2] = srcData[i + 2]; dst[i + 3] = 255;
+          } else {
+            dst[i] = restoredData[i]; dst[i + 1] = restoredData[i + 1]; dst[i + 2] = restoredData[i + 2]; dst[i + 3] = 255;
+          }
+        }
+      }
+      mCtx.putImageData(outFrame, 0, 0);
+    }
+
+    function updateSplitValue(pct) {
+      splitPercent = Math.max(0, Math.min(100, pct));
+      const str = splitPercent.toFixed(1) + '%';
+      document.getElementById('splitLineEl').style.left = `${splitPercent}%`;
+      document.getElementById('splitPctBubble').textContent = str;
+      document.getElementById('bottomSplitSlider').value = splitPercent;
+      document.getElementById('bottomSplitText').textContent = str;
+      renderMonitorFrame();
+    }
+
+    document.getElementById('bottomSplitSlider').addEventListener('input', e => {
+      updateSplitValue(parseFloat(e.target.value));
+    });
+
+    // -------------------------------------------------------------------------
+    // 畫布觸控與滑鼠互動
+    // -------------------------------------------------------------------------
+    const vpContainer = document.getElementById('viewportContainer');
+    let isPointerDown = false;
+    let dragStartX = 0, dragStartY = 0;
+    let startPanX = 0, startPanY = 0;
+    let initialPinchDist = null;
+    let initialPinchZoom = 1.0;
+
+    function setTouchMode(mode) {
+      touchActionMode = mode;
+      document.getElementById('btnTouchSplitMode').className = mode === 'split'
+        ? 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold'
+        : 'px-2 py-0.5 rounded text-slate-300 hover:text-white';
+      document.getElementById('btnTouchPanMode').className = mode === 'pan'
+        ? 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold'
+        : 'px-2 py-0.5 rounded text-slate-300 hover:text-white';
+    }
+    document.getElementById('btnTouchSplitMode').addEventListener('click', () => setTouchMode('split'));
+    document.getElementById('btnTouchPanMode').addEventListener('click', () => setTouchMode('pan'));
+
+    const holdBtn = document.getElementById('btnHoldOriginal');
+    holdBtn.addEventListener('pointerdown', () => { isHoldOriginal = true; renderMonitorFrame(); });
+    window.addEventListener('pointerup', () => {
+      if (isHoldOriginal) { isHoldOriginal = false; renderMonitorFrame(); }
+    });
+
+    document.getElementById('btnZoomIn').addEventListener('click', () => { setZoom(zoomScale + 0.5); setTouchMode('pan'); });
+    document.getElementById('btnZoomOut').addEventListener('click', () => setZoom(zoomScale - 0.5));
+    document.getElementById('btnZoomReset').addEventListener('click', () => { setZoom(1.0); setTouchMode('split'); });
+    document.getElementById('btnZoom2x').addEventListener('click', () => { setZoom(2.0); setTouchMode('pan'); });
+    document.getElementById('btnZoom4x').addEventListener('click', () => { setZoom(4.0); setTouchMode('pan'); });
+
+    vpContainer.addEventListener('wheel', e => {
+      e.preventDefault();
+      setZoom(zoomScale + (e.deltaY < 0 ? 0.35 : -0.35));
+      if (zoomScale > 1.05) setTouchMode('pan'); else setTouchMode('split');
+    }, { passive: false });
+
+    vpContainer.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        initialPinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialPinchZoom = zoomScale;
+      }
+    }, { passive: true });
+
+    vpContainer.addEventListener('touchmove', e => {
+      if (e.touches.length === 2 && initialPinchDist) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        setZoom(initialPinchZoom * (dist / initialPinchDist));
+        if (zoomScale > 1.05) setTouchMode('pan');
+      }
+    }, { passive: true });
+
+    vpContainer.addEventListener('touchend', () => { initialPinchDist = null; });
+
+    vpContainer.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'touch' && !e.isPrimary) return;
+      isPointerDown = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      startPanX = panX;
+      startPanY = panY;
+
+      if (touchActionMode === 'split') {
+        const rect = document.getElementById('mainCanvas').getBoundingClientRect();
+        if (rect.width > 0) {
+          updateSplitValue(((e.clientX - rect.left) / rect.width) * 100);
+        }
+      }
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (!isPointerDown || initialPinchDist) return;
+      if (touchActionMode === 'split') {
+        const rect = document.getElementById('mainCanvas').getBoundingClientRect();
+        if (rect.width > 0) {
+          updateSplitValue(((e.clientX - rect.left) / rect.width) * 100);
+        }
+      } else {
+        panX = startPanX + (e.clientX - dragStartX);
+        panY = startPanY + (e.clientY - dragStartY);
+        applyStageTransform();
+      }
+    });
+
+    window.addEventListener('pointerup', () => { isPointerDown = false; });
+
+    document.getElementById('btnToggleFullscreen').addEventListener('click', () => {
+      isFullscreenDetail = !isFullscreenDetail;
+      const bottomDock = document.getElementById('bottomDock');
+      const btn = document.getElementById('btnToggleFullscreen');
+      if (isFullscreenDetail) {
+        bottomDock.classList.add('hidden');
+        btn.textContent = '✕ 退出全畫面';
+        btn.className = 'px-2 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-bold text-xs';
+      } else {
+        bottomDock.classList.remove('hidden');
+        btn.textContent = '⛶ 全畫面';
+        btn.className = 'px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-semibold';
+      }
+      setTimeout(fitCanvasStageToViewport, 50);
+    });
+
+    // -------------------------------------------------------------------------
+    // 8 大風格預覽卡與佇列管理
+    // -------------------------------------------------------------------------
+    function renderStyleCards() {
+      const container = document.getElementById('styleCardsContainer');
+      container.innerHTML = '';
+      const curItem = mediaQueue.find(m => m.id === selectedItemId);
+      const recIds = curItem ? curItem.analysis.recommendedIds : ['natural_true', 'crystal_clarity', 'cinematic_story'];
+
+      const aspect = (workCanvas.width || 1) / (workCanvas.height || 1);
+      const tw = 80;
+      const th = Math.max(45, Math.min(100, Math.round(tw / aspect)));
+      const tmpC = document.createElement('canvas');
+      tmpC.width = tw; tmpC.height = th;
+      tmpC.getContext('2d').drawImage(workCanvas, 0, 0, tw, th);
+      const thumbRaw = tmpC.getContext('2d').getImageData(0, 0, tw, th).data;
+
+      STYLE_LIBRARY.forEach(st => {
+        const recIdx = recIds.indexOf(st.id);
+        const card = document.createElement('div');
+        card.className = `style-chip cursor-pointer rounded-lg border border-slate-800 bg-[#080b11] p-1.5 flex flex-col justify-between transition ${st.id === activeStyleId ? 'active' : ''}`;
+
+        const prevC = document.createElement('canvas');
+        prevC.width = tw; prevC.height = th;
+        prevC.className = 'w-full h-14 object-contain bg-black rounded border border-slate-800/80';
+        const outThumb = runPixelRestoration(thumbRaw, tw, th, st.params);
+        prevC.getContext('2d').putImageData(new ImageData(outThumb, tw, th), 0, 0);
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'mt-1 flex items-center justify-between gap-1';
+        titleEl.innerHTML = `
+          <span class="text-[11px] font-bold text-white truncate">${st.name}</span>
+          ${recIdx !== -1
+            ? `<span class="px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-extrabold text-[9px] shrink-0">★#${recIdx + 1}</span>`
+            : `<span class="text-[9px] text-slate-400 shrink-0">${st.tag}</span>`
+          }
+        `;
+        card.appendChild(prevC);
+        card.appendChild(titleEl);
+        card.addEventListener('click', () => {
+          applyStyle(st.id);
+          showToast(`已套用「${st.name}」`, 'info');
+        });
+        container.appendChild(card);
+      });
+    }
+
+    function applyStyle(styleId) {
+      activeStyleId = styleId;
+      const st = STYLE_LIBRARY.find(s => s.id === styleId) || STYLE_LIBRARY[0];
+      const curItem = mediaQueue.find(m => m.id === selectedItemId);
+      const wType = curItem ? curItem.analysis.waterType : 'deep_blue';
+      const off = learnedOffsets[wType] || { rg: 0, dehaze: 0, temp: 0, tint: 0, shadow: 0 };
+
+      currentParams = {
+        ...st.params,
+        rg: Math.max(0, Math.min(1, st.params.rg + off.rg)),
+        dehaze: Math.max(0, Math.min(1, st.params.dehaze + off.dehaze)),
+        temp: Math.max(-45, Math.min(45, st.params.temp + off.temp)),
+        tint: Math.max(-45, Math.min(45, st.params.tint + off.tint)),
+        shadow: Math.max(0, Math.min(0.8, st.params.shadow + off.shadow))
+      };
+
+      if (curItem) {
+        curItem.appliedStyleId = styleId;
+        curItem.customParams = { ...currentParams };
+      }
+      syncSlidersUI();
+      renderMonitorFrame();
+      renderStyleCards();
+      renderQueueGrid();
+    }
+
+    function initBuiltinQueue() {
+      const presets = [
+        { id: 's_portrait', name: '01_直式自由潛水_9x16.jpg', key: 'portrait_freedive', w: 540, h: 960, type: 'photo' },
+        { id: 's_reef', name: '02_藍水珊瑚海龜_16x9.jpg', key: 'reef_16_9', w: 800, h: 450, type: 'photo' },
+        { id: 's_emerald', name: '03_東北角綠水礁岩_4x3.jpg', key: 'emerald_4_3', w: 720, h: 540, type: 'photo' },
+        { id: 's_macro', name: '04_微距小丑魚除海雪_4x3.jpg', key: 'macro_4_3', w: 720, h: 540, type: 'photo' }
+      ];
+      mediaQueue = presets.map(p => {
+        const origC = buildFastSceneCanvas(p.key, p.w, p.h);
+        const analysis = analyzeImageCanvas(origC);
+        const bestId = analysis.recommendedIds[0];
+        return {
+          id: p.id, name: p.name, type: p.type, sceneKey: p.key,
+          origWidth: p.w, origHeight: p.h,
+          origCanvas: origC,
+          thumbUrl: origC.toDataURL('image/jpeg', 0.7),
+          analysis,
+          appliedStyleId: bestId,
+          customParams: { ...STYLE_LIBRARY.find(s => s.id === bestId).params }
+        };
+      });
+      selectMediaItem(mediaQueue[0].id);
+    }
+
+    function selectMediaItem(id) {
+      selectedItemId = id;
+      const item = mediaQueue.find(m => m.id === id);
+      if (!item) return;
+
+      const maxPrev = 860;
+      const scale = Math.min(1.0, maxPrev / Math.max(item.origWidth, item.origHeight));
+      const pw = Math.max(1, Math.round(item.origWidth * scale));
+      const ph = Math.max(1, Math.round(item.origHeight * scale));
+
+      workCanvas.width = pw;
+      workCanvas.height = ph;
+
+      const vid = document.getElementById('hiddenVideo');
+      if (item.type === 'video' && item.videoUrl) {
+        vid.src = item.videoUrl;
+        vid.play();
+        if (playInterval) clearInterval(playInterval);
+        playInterval = setInterval(() => {
+          workCtx.drawImage(vid, 0, 0, pw, ph);
+          renderMonitorFrame();
+        }, 65);
+      } else {
+        vid.pause();
+        if (playInterval) clearInterval(playInterval);
+        workCtx.drawImage(item.origCanvas, 0, 0, pw, ph);
+      }
+
+      document.getElementById('aspectBadge').textContent =
+        `${formatAspectRatio(item.origWidth, item.origHeight)} (${item.origWidth}×${item.origHeight})`;
+      document.getElementById('aiDiagnosisBanner').textContent = item.analysis.summary;
+
+      activeStyleId = item.appliedStyleId;
+      currentParams = { ...item.customParams };
+      setZoom(1.0);
+      syncSlidersUI();
+      renderMonitorFrame();
+      fitCanvasStageToViewport();
+      renderStyleCards();
+      renderQueueGrid();
+    }
+
+    function renderQueueGrid() {
+      const grid = document.getElementById('queueGridContainer');
+      document.getElementById('navQueueCount').textContent = mediaQueue.length;
+      grid.innerHTML = '';
+
+      mediaQueue.forEach(item => {
+        const stObj = STYLE_LIBRARY.find(s => s.id === item.appliedStyleId) || STYLE_LIBRARY[0];
+        const card = document.createElement('div');
+        card.className = `p-1.5 rounded-lg border cursor-pointer flex items-center gap-2 transition ${
+          item.id === selectedItemId ? 'border-cyan-400 bg-cyan-950/30' : 'border-slate-800 bg-[#080b11]'
+        }`;
+        card.innerHTML = `
+          <img src="${item.thumbUrl}" class="w-12 h-12 object-contain bg-black rounded border border-slate-800 shrink-0" />
+          <div class="min-w-0 flex-1">
+            <div class="text-[11px] font-bold text-white truncate">${item.name}</div>
+            <div class="text-[10px] text-cyan-300 font-mono">${item.origWidth}×${item.origHeight}</div>
+            <div class="text-[10px] text-amber-300 truncate">${stObj.name}</div>
+          </div>
+        `;
+        card.addEventListener('click', () => selectMediaItem(item.id));
+        grid.appendChild(card);
+      });
+    }
+
+    function importUserFiles(fileList) {
+      const files = Array.from(fileList);
+      if (!files.length) return;
+      showToast(`正在載入 ${files.length} 個檔案並鎖定原始長寬比...`, 'info');
+
+      files.forEach((file, i) => {
+        const id = 'u_' + Date.now() + '_' + i;
+        if (file.type.startsWith('video/')) {
+          const url = URL.createObjectURL(file);
+          const v = document.createElement('video');
+          v.src = url; v.muted = true; v.playsInline = true; v.currentTime = 0.1;
+          v.onloadeddata = () => {
+            const vw = v.videoWidth || 1280, vh = v.videoHeight || 720;
+            const c = document.createElement('canvas');
+            c.width = vw; c.height = vh;
+            c.getContext('2d').drawImage(v, 0, 0, vw, vh);
+            const analysis = analyzeImageCanvas(c);
+            const bestId = analysis.recommendedIds[0];
+            mediaQueue.unshift({
+              id, name: file.name, type: 'video', videoUrl: url,
+              origWidth: vw, origHeight: vh, origCanvas: c,
+              thumbUrl: c.toDataURL('image/jpeg', 0.65),
+              analysis, appliedStyleId: bestId,
+              customParams: { ...STYLE_LIBRARY.find(s => s.id === bestId).params }
+            });
+            selectMediaItem(id);
+            showToast(`已載入影片 (${vw}×${vh})，保持原始比例！`, 'success');
+          };
+        } else {
+          const img = new Image();
+          img.onload = () => {
+            const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+            const c = document.createElement('canvas');
+            c.width = iw; c.height = ih;
+            c.getContext('2d').drawImage(img, 0, 0, iw, ih);
+            const analysis = analyzeImageCanvas(c);
+            const bestId = analysis.recommendedIds[0];
+            mediaQueue.unshift({
+              id, name: file.name, type: 'photo',
+              origWidth: iw, origHeight: ih, origCanvas: c,
+              thumbUrl: c.toDataURL('image/jpeg', 0.7),
+              analysis, appliedStyleId: bestId,
+              customParams: { ...STYLE_LIBRARY.find(s => s.id === bestId).params }
+            });
+            selectMediaItem(id);
+            showToast(`已載入照片 (${iw}×${ih})，自動推薦【${STYLE_LIBRARY.find(s => s.id === bestId).name}】`, 'success');
+          };
+          img.src = URL.createObjectURL(file);
+        }
+      });
+    }
+
+    document.getElementById('fileInput').addEventListener('change', e => importUserFiles(e.target.files));
+    document.getElementById('batchFileInput').addEventListener('change', e => importUserFiles(e.target.files));
+
+    // -------------------------------------------------------------------------
+    // 輸出、選擇位置儲存與系統分享
+    // -------------------------------------------------------------------------
+    function renderCurrentItemAtSelectedResolution() {
+      const item = mediaQueue.find(m => m.id === selectedItemId);
+      const resChoice = document.getElementById('expResolution').value;
+      const baseW = item ? item.origWidth : workCanvas.width;
+      const baseH = item ? item.origHeight : workCanvas.height;
+
+      let outW = baseW, outH = baseH;
+      if (resChoice !== 'native') {
+        const targetMax = parseInt(resChoice, 10);
+        const ratio = Math.min(1.0, targetMax / Math.max(baseW, baseH));
+        outW = Math.max(1, Math.round(baseW * ratio));
+        outH = Math.max(1, Math.round(baseH * ratio));
+      }
+
+      const srcC = document.createElement('canvas');
+      srcC.width = outW; srcC.height = outH;
+      if (item && item.type === 'video' && item.videoUrl) {
+        srcC.getContext('2d').drawImage(document.getElementById('hiddenVideo'), 0, 0, outW, outH);
+      } else if (item && item.origCanvas) {
+        srcC.getContext('2d').drawImage(item.origCanvas, 0, 0, outW, outH);
+      } else {
+        srcC.getContext('2d').drawImage(workCanvas, 0, 0, outW, outH);
+      }
+
+      const raw = srcC.getContext('2d').getImageData(0, 0, outW, outH).data;
+      const restored = runPixelRestoration(raw, outW, outH, currentParams);
+      const finalC = document.createElement('canvas');
+      finalC.width = outW; finalC.height = outH;
+      finalC.getContext('2d').putImageData(new ImageData(restored, outW, outH), 0, 0);
+      return finalC;
+    }
+
+    async function getExportPhotoBlobAndName() {
+      const [mime, qStr] = document.getElementById('expImageFormat').value.split('|');
+      const quality = parseFloat(qStr);
+      const ext = mime === 'image/png' ? 'png' : (mime === 'image/webp' ? 'webp' : 'jpg');
+      const item = mediaQueue.find(m => m.id === selectedItemId);
+      const baseName = item ? item.name.replace(/\.[^/.]+$/, '') : 'AquaRestore';
+      const fileName = `${baseName}_${activeStyleId}.${ext}`;
+      const finalC = renderCurrentItemAtSelectedResolution();
+      const blob = await new Promise(resolve => finalC.toBlob(resolve, mime, quality));
+      return { blob, fileName, mime };
+    }
+
+    async function saveBlobWithPicker(blob, suggestedName, mimeType) {
+      if (window.showSaveFilePicker) {
+        try {
+          const ext = suggestedName.split('.').pop();
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description: 'AquaRestore Output File', accept: { [mimeType]: ['.' + ext] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          showToast(`📁 已成功儲存至您指定的位置 (${suggestedName})！`, 'success');
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = suggestedName;
+      a.click();
+      showToast(`⬇ 已下載檔案 (${suggestedName})`, 'success');
+    }
+
+    async function shareBlobViaSystemSheet(blob, fileName, mimeType) {
+      const file = new File([blob], fileName, { type: mimeType });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: fileName,
+            text: '由 AquaRestore Studio Pro 還原的水下影像',
+            files: [file]
+          });
+          showToast('📲 已喚起系統分享／儲存選單！', 'success');
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+      await saveBlobWithPicker(blob, fileName, mimeType);
+    }
+
+    document.getElementById('btnSavePhotoPicker').addEventListener('click', async () => {
+      showToast('正在依設定解析度與畫質渲染照片...', 'info');
+      const { blob, fileName, mime } = await getExportPhotoBlobAndName();
+      await saveBlobWithPicker(blob, fileName, mime);
+    });
+
+    document.getElementById('btnSharePhotoNative').addEventListener('click', async () => {
+      showToast('正在準備分享檔案...', 'info');
+      const { blob, fileName, mime } = await getExportPhotoBlobAndName();
+      await shareBlobViaSystemSheet(blob, fileName, mime);
+    });
+
+    function renderVideoWithCustomSpecs() {
+      const fps = parseInt(document.getElementById('expVideoFps').value, 10) || 30;
+      const bitrate = parseInt(document.getElementById('expVideoBitrate').value, 10) || 8000000;
+      const modal = document.getElementById('videoModal');
+      const bar = document.getElementById('videoModalBar');
+      const pctTxt = document.getElementById('videoModalPct');
+      const doneBox = document.getElementById('videoDoneActions');
+      const spinner = document.getElementById('videoSpinner');
+      const title = document.getElementById('videoModalTitle');
+
+      modal.classList.remove('hidden');
+      doneBox.classList.add('hidden');
+      spinner.classList.remove('hidden');
+      title.textContent = '正在依設定畫質與幀數渲染還原影片...';
+      document.getElementById('videoModalSpec').textContent =
+        `${restoredCanvas.width}×${restoredCanvas.height} | ${fps} FPS | ${(bitrate / 1000000).toFixed(0)} Mbps`;
+
+      const stream = restoredCanvas.captureStream(fps);
+      const mimes = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+      const chosenMime = mimes.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+      const chunks = [];
+      let rec;
+      try {
+        rec = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime, videoBitsPerSecond: bitrate }) : new MediaRecorder(stream);
+      } catch (e) {
+        rec = new MediaRecorder(stream);
+      }
+
+      const item = mediaQueue.find(m => m.id === selectedItemId);
+      const vid = document.getElementById('hiddenVideo');
+      const isUserVid = item && item.type === 'video' && item.videoUrl;
+      const totalSec = isUserVid && vid.duration && isFinite(vid.duration) ? Math.min(15.0, vid.duration) : 4.5;
+
+      rec.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      rec.onstop = () => {
+        spinner.classList.add('hidden');
+        if (!chunks.length) return;
+        const ext = chosenMime.includes('mp4') ? 'mp4' : 'webm';
+        lastRecordedVideoBlob = new Blob(chunks, { type: chosenMime || 'video/webm' });
+        const clean = item ? item.name.replace(/\.[^/.]+$/, '') : 'AquaRestore_Video';
+        lastRecordedVideoName = `${clean}_${activeStyleId}_${fps}fps.${ext}`;
+        title.textContent = `✅ 影片渲染完成！(${lastRecordedVideoName})`;
+        doneBox.classList.remove('hidden');
+      };
+
+      rec.start(100);
+      if (isUserVid) { vid.currentTime = 0; vid.play(); }
+
+      const t0 = performance.now();
+      const intervalMs = Math.max(16, Math.round(1000 / fps));
+      const timer = setInterval(() => {
+        const elapsed = (performance.now() - t0) / 1000;
+        const ratio = Math.min(1.0, elapsed / totalSec);
+        bar.style.width = `${Math.round(ratio * 100)}%`;
+        pctTxt.textContent = `${Math.round(ratio * 100)}% (${elapsed.toFixed(1)}s / ${totalSec.toFixed(1)}s)`;
+
+        if (isUserVid) {
+          workCtx.drawImage(vid, 0, 0, workCanvas.width, workCanvas.height);
+        } else {
+          const dVal = 8.0 + Math.sin(ratio * Math.PI) * 12.0;
+          const sc = buildFastSceneCanvas(item ? item.sceneKey : 'portrait_freedive', workCanvas.width, workCanvas.height, dVal);
+          workCtx.drawImage(sc, 0, 0);
+        }
+        renderMonitorFrame();
+
+        if (ratio >= 1.0) {
+          clearInterval(timer);
+          if (rec.state === 'recording') rec.stop();
+        }
+      }, intervalMs);
+
+      document.getElementById('btnCloseVideoModal').onclick = () => {
+        clearInterval(timer);
+        if (rec.state === 'recording') rec.stop();
+        modal.classList.add('hidden');
+      };
+    }
+
+    document.getElementById('btnRenderVideoWithSpec').addEventListener('click', renderVideoWithCustomSpecs);
+    document.getElementById('btnVideoSavePicker').addEventListener('click', () => {
+      if (lastRecordedVideoBlob) saveBlobWithPicker(lastRecordedVideoBlob, lastRecordedVideoName, lastRecordedVideoBlob.type);
+    });
+    document.getElementById('btnVideoNativeShare').addEventListener('click', () => {
+      if (lastRecordedVideoBlob) shareBlobViaSystemSheet(lastRecordedVideoBlob, lastRecordedVideoName, lastRecordedVideoBlob.type);
+    });
+
+    function switchBottomTab(tabName) {
+      ['styles', 'adjust', 'batch', 'export'].forEach(t => {
+        document.getElementById(`tabPane_${t}`).classList.toggle('hidden', t !== tabName);
+      });
+      document.querySelectorAll('.nav-tab').forEach(btn => {
+        const active = btn.dataset.tab === tabName;
+        btn.classList.toggle('active', active);
+        btn.classList.toggle('text-slate-400', !active);
+      });
+    }
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => switchBottomTab(btn.dataset.tab));
+    });
+    document.getElementById('btnTopQuickShare').addEventListener('click', () => switchBottomTab('export'));
+
+    document.getElementById('subTabBasic').addEventListener('click', () => {
+      document.getElementById('basicSlidersGrid').classList.remove('hidden');
+      document.getElementById('proSlidersGrid').classList.add('hidden');
+      document.getElementById('subTabBasic').className = 'px-2.5 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold';
+      document.getElementById('subTabPro').className = 'px-2.5 py-0.5 rounded text-slate-400';
+    });
+    document.getElementById('subTabPro').addEventListener('click', () => {
+      document.getElementById('proSlidersGrid').classList.remove('hidden');
+      document.getElementById('basicSlidersGrid').classList.add('hidden');
+      document.getElementById('subTabPro').className = 'px-2.5 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold';
+      document.getElementById('subTabBasic').className = 'px-2.5 py-0.5 rounded text-slate-400';
+    });
+
+    function syncSlidersUI() {
+      const p = currentParams;
+      document.getElementById('s_intensity').value = Math.round(p.intensity * 100);
+      document.getElementById('v_intensity').textContent = Math.round(p.intensity * 100) + '%';
+      document.getElementById('s_depth').value = p.depth;
+      document.getElementById('v_depth').textContent = Number(p.depth).toFixed(1) + 'm';
+      document.getElementById('s_dehaze').value = Math.round(p.dehaze * 100);
+      document.getElementById('v_dehaze').textContent = Math.round(p.dehaze * 100) + '%';
+      document.getElementById('s_scatter').value = Math.round(p.scatter * 100);
+      document.getElementById('v_scatter').textContent = Math.round(p.scatter * 100) + '%';
+      document.getElementById('s_shadow').value = Math.round((p.shadow || 0) * 100);
+      document.getElementById('v_shadow').textContent = Math.round((p.shadow || 0) * 100) + '%';
+      document.getElementById('s_sat').value = Math.round(p.sat * 100);
+      document.getElementById('v_sat').textContent = Number(p.sat).toFixed(2) + 'x';
+
+      document.getElementById('s_rg').value = Math.round(p.rg * 100);
+      document.getElementById('v_rg').textContent = Number(p.rg).toFixed(2);
+      document.getElementById('s_temp').value = p.temp;
+      document.getElementById('v_temp').textContent = (p.temp >= 0 ? '+' : '') + Math.round(p.temp);
+      document.getElementById('s_tint').value = p.tint;
+      document.getElementById('v_tint').textContent = (p.tint >= 0 ? '+' : '') + Math.round(p.tint);
+      document.getElementById('s_clarity').value = Math.round(p.clarity * 10);
+      document.getElementById('v_clarity').textContent = Number(p.clarity).toFixed(1);
+      document.getElementById('s_gamma').value = Math.round(p.gamma * 100);
+      document.getElementById('v_gamma').textContent = Number(p.gamma).toFixed(2);
+      document.getElementById('s_hiprot').value = Math.round(p.hiprot * 100);
+      document.getElementById('v_hiprot').textContent = Math.round(p.hiprot * 100) + '%';
+    }
+
+    [
+      ['s_intensity', v => currentParams.intensity = v / 100],
+      ['s_depth', v => currentParams.depth = v],
+      ['s_dehaze', v => currentParams.dehaze = v / 100],
+      ['s_scatter', v => currentParams.scatter = v / 100],
+      ['s_shadow', v => currentParams.shadow = v / 100],
+      ['s_sat', v => currentParams.sat = v / 100],
+      ['s_rg', v => currentParams.rg = v / 100],
+      ['s_temp', v => currentParams.temp = v],
+      ['s_tint', v => currentParams.tint = v],
+      ['s_clarity', v => currentParams.clarity = v / 10],
+      ['s_gamma', v => currentParams.gamma = v / 100],
+      ['s_hiprot', v => currentParams.hiprot = v / 100]
+    ].forEach(([id, fn]) => {
+      document.getElementById(id).addEventListener('input', e => {
+        fn(parseFloat(e.target.value));
+        const curItem = mediaQueue.find(m => m.id === selectedItemId);
+        if (curItem) curItem.customParams = { ...currentParams };
+        syncSlidersUI();
+        renderMonitorFrame();
+      });
+    });
+
+    document.getElementById('btnQuickAuto').addEventListener('click', () => {
+      const curItem = mediaQueue.find(m => m.id === selectedItemId);
+      if (curItem) {
+        const bestId = curItem.analysis.recommendedIds[0];
+        applyStyle(bestId);
+        showToast(`✨ AI 已自動套用最適合該畫面的【${STYLE_LIBRARY.find(s => s.id === bestId).name}】`, 'success');
+      }
+    });
+
+    document.getElementById('btnLearnStyle').addEventListener('click', () => {
+      const curItem = mediaQueue.find(m => m.id === selectedItemId);
+      const wType = curItem ? curItem.analysis.waterType : 'deep_blue';
+      const base = STYLE_LIBRARY.find(s => s.id === activeStyleId).params;
+      const off = learnedOffsets[wType];
+      const lr = 0.35;
+      off.rg = (1 - lr) * off.rg + lr * (currentParams.rg - base.rg);
+      off.dehaze = (1 - lr) * off.dehaze + lr * (currentParams.dehaze - base.dehaze);
+      off.temp = (1 - lr) * off.temp + lr * (currentParams.temp - base.temp);
+      off.tint = (1 - lr) * off.tint + lr * (currentParams.tint - base.tint);
+      off.shadow = (1 - lr) * off.shadow + lr * ((currentParams.shadow || 0) - base.shadow);
+      learnCount++;
+      document.getElementById('learnCountBadge').textContent = learnCount;
+      showToast(`♥ 已學習您的調色偏好（累計 ${learnCount} 次）！`, 'success');
+    });
+
+    document.getElementById('btnResetCurrent').addEventListener('click', () => applyStyle(activeStyleId));
+
+    document.getElementById('btnBatchSmartAll').addEventListener('click', () => {
+      mediaQueue.forEach(item => {
+        const bestId = item.analysis.recommendedIds[0];
+        item.appliedStyleId = bestId;
+        item.customParams = { ...STYLE_LIBRARY.find(s => s.id === bestId).params };
+      });
+      renderQueueGrid();
+      renderMonitorFrame();
+      showToast(`⚡ 已為佇列中全部 ${mediaQueue.length} 個檔案套用 AI 最佳風格！`, 'success');
+    });
+
+    document.getElementById('btnBatchSyncAll').addEventListener('click', () => {
+      mediaQueue.forEach(item => {
+        item.appliedStyleId = activeStyleId;
+        item.customParams = { ...currentParams };
+      });
+      renderQueueGrid();
+      showToast(`🎨 已將當前風格同步至全部 ${mediaQueue.length} 個檔案！`, 'success');
+    });
+
+    document.getElementById('btnBatchZipExport').addEventListener('click', async () => {
+      showToast('正在以原始比例批次打包全部照片...', 'info');
+      if (!window.JSZip) return;
+      const zip = new JSZip();
+      mediaQueue.forEach((item, idx) => {
+        const w = item.origWidth, h = item.origHeight;
+        const raw = item.origCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+        const out = runPixelRestoration(raw, w, h, item.customParams);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').putImageData(new ImageData(out, w, h), 0, 0);
+        const b64 = c.toDataURL('image/png').split(',')[1];
+        const clean = item.name.replace(/\.[^/.]+$/, '');
+        zip.file(`${String(idx + 1).padStart(2, '0')}_${clean}_${item.appliedStyleId}.png`, b64, { base64: true });
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      await saveBlobWithPicker(blob, `AquaRestore_Batch_${mediaQueue.length}files.zip`, 'application/zip');
+    });
+
+    document.getElementById('btnExportCubeLut').addEventListener('click', async () => {
+      const size = 17, p = currentParams;
+      const df = Math.min(2.2, Math.max(0.3, p.depth / 10.0));
+      const lines = [
+        '# Generated by AquaRestore Studio Pro v4.1',
+        `TITLE "AquaRestore_${activeStyleId}"`,
+        `LUT_3D_SIZE ${size}`,
+        'DOMAIN_MIN 0.0 0.0 0.0',
+        'DOMAIN_MAX 1.0 1.0 1.0'
+      ];
+      for (let b = 0; b < size; b++) {
+        for (let g = 0; g < size; g++) {
+          for (let r = 0; r < size; r++) {
+            const rf = r / (size - 1), gf = g / (size - 1), bf = b / (size - 1);
+            const rOut = Math.min(1, Math.max(0, rf + (p.rg * df * gf) * (1 - rf) * 0.75 + p.temp * 0.004));
+            const gOut = Math.min(1, Math.max(0, gf - p.tint * 0.003));
+            const bOut = Math.min(1, Math.max(0, bf * (1 - 0.1 * df) - p.temp * 0.004));
+            lines.push(`${rOut.toFixed(6)} ${gOut.toFixed(6)} ${bOut.toFixed(6)}`);
+          }
+        }
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+      await saveBlobWithPicker(blob, `AquaRestore_${activeStyleId}.cube`, 'text/plain');
+    });
+
+    document.getElementById('btnPlayPause').addEventListener('click', () => {
+      isPlayingSim = !isPlayingSim;
+      document.getElementById('btnPlayPause').textContent = isPlayingSim ? '⏸ 暫停預覽' : '▶ 動態預覽';
+      if (isPlayingSim) {
+        playInterval = setInterval(() => {
+          simTimeSec = (simTimeSec + 0.15) % 8.0;
+          document.getElementById('videoScrubSlider').value = (simTimeSec / 8.0) * 100;
+          document.getElementById('timecodeLabel').textContent = `00:0${simTimeSec.toFixed(1)}`;
+          const item = mediaQueue.find(m => m.id === selectedItemId);
+          if (item && item.type === 'video' && item.videoUrl) {
+            const v = document.getElementById('hiddenVideo');
+            workCtx.drawImage(v, 0, 0, workCanvas.width, workCanvas.height);
+          } else {
+            const dVal = 8.0 + Math.sin((simTimeSec / 8.0) * Math.PI) * 12.0;
+            const sc = buildFastSceneCanvas(item ? item.sceneKey : 'portrait_freedive', workCanvas.width, workCanvas.height, dVal);
+            workCtx.drawImage(sc, 0, 0);
+          }
+          renderMonitorFrame();
+        }, 80);
+      } else if (playInterval) {
+        clearInterval(playInterval);
+      }
+    });
+
+    // 啟動工作站並確保關閉啟動遮罩
+    try {
+      initBuiltinQueue();
+    } finally {
+      window.__dismissSplash();
+    }
+  </script>
+</body>
+</html>
